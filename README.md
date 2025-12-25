@@ -90,20 +90,36 @@ abugida/
 - **Vite** - Fast development server
 - **Supabase** - Optional backend (PostgreSQL + Storage + Auth)
 
-## 🌐 Supabase Integration (Optional)
+## 🌐 Supabase Backend (Required for Production)
 
-The app works perfectly offline with local fonts, but you can enable cloud features:
+**For Production:** Supabase is the core backend - fonts are served from cloud storage on-demand.
+
+**For Development:** Local fonts work as fallback for testing without Supabase.
+
+### Production Setup
 
 1. Create a Supabase project at [supabase.com](https://supabase.com)
 2. Run the SQL schema from `supabase/schema.sql`
-3. Upload fonts to Storage
-4. Create `.env` file:
-   ```
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_ANON_KEY=your-anon-key
-   ```
+3. Upload fonts to Supabase Storage
+4. Configure the app with your Supabase credentials
 
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for detailed instructions.
+
+### Architecture
+
+```
+User Opens App
+    ↓
+Sign In (Supabase Auth) ← REQUIRED
+    ↓
+Fetch Font List (Supabase DB)
+    ↓
+Preview Font (Download from Supabase Storage)
+    ↓
+Install to Windows
+```
+
+Fonts are NEVER bundled - they're downloaded on-demand from your Supabase Storage.
 
 ## 📦 Adding New Fonts
 

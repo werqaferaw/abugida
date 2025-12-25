@@ -1,0 +1,66 @@
+======================================
+CREATE GITHUB RELEASE - 2 MINUTE GUIDE
+======================================
+
+I've prepared everything! Just follow these steps:
+
+STEP 1: Go to Releases
+------------------------
+Open: https://github.com/werqaferaw/abugida/releases/new
+
+STEP 2: Fill in the Release Form
+---------------------------------
+Tag: v1.0.0 (should already be selected)
+Title: Abugida Font Manager v1.0.0 - MVP
+
+Description (copy this):
+---
+## 🎉 First Release - MVP
+
+Amharic Font Manager for Windows
+
+### ✨ Features
+- Font preview with Amharic text
+- One-click install/uninstall
+- Native Windows UI
+- Includes Bela Hidase Qedmo font family
+
+### 📥 Installation
+1. Download `Abugida-Font-Manager-v1.0.0-Windows.zip` below
+2. Extract the zip file
+3. Run `Abugida Font Manager.exe`
+4. That's it!
+
+### 💻 Requirements
+- Windows 10 (1809+) or Windows 11
+- ~200MB disk space
+- No admin rights needed
+
+### ⚠️ First Run
+Windows may show "Unknown publisher" warning - this is normal.
+Click "More info" → "Run anyway"
+
+### 🐛 Known Limitations
+- Not code-signed (normal for MVP)
+- Local fonts only (Supabase is optional)
+
+---
+
+STEP 3: Attach the Zip File
+----------------------------
+- Find the file: release/Abugida-Font-Manager-v1.0.0-Windows.zip
+- Drag and drop it to the "Attach binaries" area at the bottom
+- Wait for upload to complete
+
+STEP 4: Publish
+---------------
+Click "Publish release"
+
+DONE! Your app is now downloadable!
+======================================
+
+File location: release/Abugida-Font-Manager-v1.0.0-Windows.zip
+File size: ~150MB
+
+Share link: https://github.com/werqaferaw/abugida/releases/latest
+
