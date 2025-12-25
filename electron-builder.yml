@@ -5,9 +5,11 @@ directories:
 files:
   - dist/**/*
   - "!dist/**/*.map"
-extraResources:
-  - from: font-repo/families
-    to: font-repo/families
+# NOTE: Font files are NOT bundled in production
+# Fonts are downloaded on-demand from Supabase Storage
+# extraResources:
+#   - from: font-repo/families
+#     to: font-repo/families
 win:
   target:
     - target: nsis
