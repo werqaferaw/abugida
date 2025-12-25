@@ -23,17 +23,20 @@ Amharic Font Manager for Windows
 - Font preview with Amharic text
 - One-click install/uninstall
 - Native Windows UI
-- Includes Bela Hidase Qedmo font family
+- Supabase backend integration
+- Fonts downloaded on-demand from cloud
 
 ### 📥 Installation
 1. Download `Abugida-Font-Manager-v1.0.0-Windows.zip` below
 2. Extract the zip file
 3. Run `Abugida Font Manager.exe`
-4. That's it!
+4. Sign up or log in
+5. Browse and install fonts!
 
 ### 💻 Requirements
 - Windows 10 (1809+) or Windows 11
-- ~200MB disk space
+- ~150MB disk space
+- Internet connection (for authentication & font downloads)
 - No admin rights needed
 
 ### ⚠️ First Run
@@ -42,7 +45,7 @@ Click "More info" → "Run anyway"
 
 ### 🐛 Known Limitations
 - Not code-signed (normal for MVP)
-- Local fonts only (Supabase is optional)
+- Requires Supabase credentials (.env file)
 
 ---
 
@@ -60,7 +63,7 @@ DONE! Your app is now downloadable!
 ======================================
 
 File location: release/Abugida-Font-Manager-v1.0.0-Windows.zip
-File size: ~150MB
+File size: ~112MB
 
 Share link: https://github.com/werqaferaw/abugida/releases/latest
 
