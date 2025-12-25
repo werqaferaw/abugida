@@ -1,0 +1,23 @@
+appId: com.abugida.fontmanager
+productName: Abugida Font Manager
+directories:
+  output: release
+files:
+  - dist/**/*
+  - "!dist/**/*.map"
+extraResources:
+  - from: font-repo/families
+    to: font-repo/families
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  publisherName: Abugida
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
