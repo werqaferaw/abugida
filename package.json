@@ -1,7 +1,7 @@
 {
   "name": "abugida",
-  "version": "1.0.0",
-  "description": "Amharic Font Manager for Windows",
+  "version": "2.0.0",
+  "description": "Cloud-based Amharic Font Hosting Platform for Windows",
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
@@ -11,7 +11,7 @@
     "package": "npm run build && electron-builder",
     "typecheck": "tsc --noEmit"
   },
-  "author": "",
+  "author": "Abugida Team",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -32,6 +32,3 @@
     "react-dom": "^18.3.1"
   }
 }
-
-
-
