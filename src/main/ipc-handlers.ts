@@ -1,12 +1,16 @@
 import { ipcMain } from 'electron';
 import * as authService from './services/auth-service';
 import * as fontService from './services/font-service';
-import * as fontInstaller from './services/font-installer';
+import * as fontActivator from './services/font-activator';
 
 export function registerIpcHandlers() {
   // Auth handlers
   ipcMain.handle('auth:login', async (_event, email: string, password: string) => {
     return authService.login(email, password);
+  });
+
+  ipcMain.handle('auth:loginAsGuest', async () => {
+    return authService.loginAsGuest();
   });
 
   ipcMain.handle('auth:signUp', async (_event, email: string, password: string) => {
@@ -36,20 +40,20 @@ export function registerIpcHandlers() {
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
 
-  // Install handlers
-  ipcMain.handle('install:install', async (_event, fontId: string, weight: string) => {
-    return fontInstaller.installFont(fontId, weight);
+  // Font activation handlers (replaces install handlers)
+  ipcMain.handle('fonts:activate', async (_event, fontId: string, weight: string) => {
+    return fontActivator.activate(fontId, weight);
   });
 
-  ipcMain.handle('install:uninstall', async (_event, fontId: string, weight: string) => {
-    return fontInstaller.uninstallFont(fontId, weight);
+  ipcMain.handle('fonts:deactivate', async (_event, fontId: string, weight: string) => {
+    return fontActivator.deactivate(fontId, weight);
   });
 
-  ipcMain.handle('install:isInstalled', async (_event, fontId: string, weight: string) => {
-    return fontInstaller.isInstalled(fontId, weight);
+  ipcMain.handle('fonts:isActive', async (_event, fontId: string, weight: string) => {
+    return fontActivator.isActive(fontId, weight);
   });
 
-  ipcMain.handle('install:list', async () => {
-    return fontInstaller.getInstalledFonts();
+  ipcMain.handle('fonts:getActive', async () => {
+    return fontActivator.getActiveFonts();
   });
 }

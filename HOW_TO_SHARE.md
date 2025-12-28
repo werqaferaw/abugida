@@ -73,3 +73,8 @@ The zipped folder will be ~120-150MB (includes Electron runtime + fonts)
 
 **For MVP, Option 1 (zip folder) is perfectly fine!**
 
+
+
+
+
+

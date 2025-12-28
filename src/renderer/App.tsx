@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { FontLibrary } from './components/FontLibrary';
 import { FontDetail } from './components/FontDetail';
-import { InstalledFonts } from './components/InstalledFonts';
-import { Header } from './components/Header';
+import { ActivatedFonts } from './components/ActivatedFonts';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/App.css';
 
-type View = 'library' | 'detail' | 'installed';
+type View = 'library' | 'detail' | 'activated';
 
 interface User {
   email: string;
@@ -28,6 +28,14 @@ function App() {
 
   const handleLogin = async (email: string, password: string) => {
     const result = await window.electronAPI.auth.login(email, password);
+    if (result.success && result.user) {
+      setUser(result.user);
+    }
+    return result;
+  };
+
+  const handleGuestLogin = async () => {
+    const result = await window.electronAPI.auth.loginAsGuest();
     if (result.success && result.user) {
       setUser(result.user);
     }
@@ -61,7 +69,7 @@ function App() {
   }
 
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} onGuestLogin={handleGuestLogin} />;
   }
 
   return (
@@ -76,10 +84,10 @@ function App() {
             Library
           </button>
           <button
-            className={`toolbar-btn ${currentView === 'installed' ? 'active' : ''}`}
-            onClick={() => setCurrentView('installed')}
+            className={`toolbar-btn ${currentView === 'activated' ? 'active' : ''}`}
+            onClick={() => setCurrentView('activated')}
           >
-            Installed
+            Activated
           </button>
         </div>
         <div className="toolbar-user">
@@ -90,15 +98,17 @@ function App() {
         </div>
       </div>
       <main className="app-main">
-        {currentView === 'library' && (
-          <FontLibrary onSelectFont={handleSelectFont} />
-        )}
-        {currentView === 'detail' && selectedFontId && (
-          <FontDetail fontId={selectedFontId} onBack={handleBack} />
-        )}
-        {currentView === 'installed' && (
-          <InstalledFonts onSelectFont={handleSelectFont} />
-        )}
+        <ErrorBoundary>
+          {currentView === 'library' && (
+            <FontLibrary onSelectFont={handleSelectFont} />
+          )}
+          {currentView === 'detail' && selectedFontId && (
+            <FontDetail fontId={selectedFontId} onBack={handleBack} />
+          )}
+          {currentView === 'activated' && (
+            <ActivatedFonts onSelectFont={handleSelectFont} />
+          )}
+        </ErrorBoundary>
       </main>
     </div>
   );

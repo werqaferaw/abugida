@@ -19,6 +19,15 @@ interface LoginResult {
 }
 
 /**
+ * Demo/Guest login for testing without authentication
+ */
+export async function loginAsGuest(): Promise<LoginResult> {
+  const guestUser: User = { email: 'guest@demo.local' };
+  await stateManager.setUser(guestUser);
+  return { success: true, user: guestUser };
+}
+
+/**
  * Login with email and password
  */
 export async function login(email: string, password: string): Promise<LoginResult> {
@@ -37,59 +46,87 @@ export async function login(email: string, password: string): Promise<LoginResul
     };
   }
 
-  // Use Supabase Auth if configured
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase().trim(),
-        password,
-      });
-
-      if (error) {
-        // Handle specific Supabase auth errors
-        if (error.message.includes('Invalid login credentials')) {
-          return {
-            success: false,
-            error: 'Invalid email or password',
-          };
-        }
-        if (error.message.includes('Email not confirmed')) {
-          return {
-            success: false,
-            error: 'Please confirm your email address',
-          };
-        }
-        return {
-          success: false,
-          error: error.message,
-        };
-      }
-
-      if (data.user) {
-        const user: User = { email: data.user.email || email };
-        await stateManager.setUser(user);
-        return { success: true, user };
-      }
-
-      return {
-        success: false,
-        error: 'Login failed',
-      };
-    } catch (err) {
-      console.error('Supabase auth error:', err);
-      return {
-        success: false,
-        error: 'Connection error. Please try again.',
-      };
-    }
+  // If Supabase not configured, allow demo mode login
+  if (!isSupabaseConfigured()) {
+    // Demo mode - allow any login
+    const user: User = { email: email.toLowerCase().trim() };
+    await stateManager.setUser(user);
+    return { success: true, user };
   }
 
-  // Fallback: Mock auth for development without Supabase
-  console.log('Using mock authentication (Supabase not configured)');
-  const user: User = { email: email.toLowerCase().trim() };
-  await stateManager.setUser(user);
-  return { success: true, user };
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password,
+    });
+
+    if (error) {
+      // Handle specific Supabase auth errors
+      if (error.message.includes('Invalid login credentials')) {
+        return {
+          success: false,
+          error: 'Invalid email or password',
+        };
+      }
+      if (error.message.includes('Email not confirmed')) {
+        return {
+          success: false,
+          error: 'Please confirm your email address',
+        };
+      }
+      // Handle network errors from Supabase client
+      if (error.message.includes('fetch failed') || error.message.includes('Failed to fetch')) {
+        return {
+          success: false,
+          error: 'Unable to connect to server. Please check your internet connection and try again.',
+        };
+      }
+      if (error.message.includes('NetworkError') || error.message.includes('network')) {
+        return {
+          success: false,
+          error: 'Network error. Please check your connection and try again.',
+        };
+      }
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    if (data.user) {
+      const user: User = { email: data.user.email || email };
+      await stateManager.setUser(user);
+      return { success: true, user };
+    }
+
+    return {
+      success: false,
+      error: 'Login failed',
+    };
+  } catch (err) {
+    console.error('Supabase auth error:', err);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    
+    // Handle common network errors with user-friendly messages
+    if (errorMsg.includes('fetch failed') || errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
+      return {
+        success: false,
+        error: 'Unable to connect to server. Please check your internet connection and try again.',
+      };
+    }
+    if (errorMsg.includes('timeout') || errorMsg.includes('ETIMEDOUT')) {
+      return {
+        success: false,
+        error: 'Connection timed out. Please try again.',
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'Connection error. Please try again.',
+    };
+  }
 }
 
 /**
@@ -175,22 +212,34 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * Get currently logged-in user
+ * Get currently logged-in user (Supabase required)
  */
 export async function getCurrentUser(): Promise<User | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        return { email: user.email || '' };
-      }
-    } catch (err) {
-      console.error('Error getting current user:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    // No Supabase = no user
+    await stateManager.setUser(null);
+    return null;
   }
   
-  // Fallback to local state
-  return stateManager.getUser();
+  try {
+    const supabase = getSupabase();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    // If there's an auth error or no user, session is invalid
+    if (error || !user) {
+      // No valid session, clear local state
+      await stateManager.setUser(null);
+      return null;
+    }
+    
+    // User exists, sync to local state for consistency
+    const userObj: User = { email: user.email || '' };
+    await stateManager.setUser(userObj);
+    return userObj;
+  } catch (err) {
+    console.error('Error getting current user:', err);
+    // On error, clear local state to be safe
+    await stateManager.setUser(null);
+    return null;
+  }
 }

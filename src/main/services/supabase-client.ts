@@ -85,4 +85,3 @@ export function isSupabaseConfigured(): boolean {
     return false;
   }
 }
-

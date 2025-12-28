@@ -1,29 +1,39 @@
-# Architecture & Deployment Strategy
+# Architecture & Technical Design
 
 ## Overview
 
-Abugida is designed as a **cloud-first font distribution platform** with Supabase as the backend.
+Abugida is a **font hosting platform** (not a font manager) designed for session-based font activation. Fonts are streamed from Supabase cloud storage and temporarily activated while the app runs, similar to Adobe Fonts or Monotype's SkyFonts.
 
-## Production vs Development
-
-### Production (End Users)
+## Architecture Model: Monotype-Style MVP
 
 ```
 ┌─────────────────────────────────────────┐
 │   User's Machine                        │
 │                                         │
 │   ┌─────────────────────────────┐      │
-│   │  Electron App (~5MB)        │      │
+│   │  Abugida App (~5MB)         │      │
 │   │  - React UI                 │      │
-│   │  - Font installer           │      │
-│   │  - Supabase client          │      │
+│   │  - Font Activator           │      │
+│   │  - Supabase Client          │      │
 │   └──────────┬──────────────────┘      │
-└──────────────┼──────────────────────────┘
+│              │                          │
+│   ┌──────────▼──────────────────┐      │
+│   │  Temp Cache                 │      │
+│   │  C:\Users\..\Temp\          │      │
+│   │  abugida-fonts\             │      │
+│   │  (auto-cleaned on exit)     │      │
+│   └──────────┬──────────────────┘      │
+│              │                          │
+│   ┌──────────▼──────────────────┐      │
+│   │  Windows Registry (HKCU)    │      │
+│   │  Per-user font activation   │      │
+│   └─────────────────────────────┘      │
+└─────────────────────────────────────────┘
                │
                │ HTTPS
                ↓
 ┌─────────────────────────────────────────┐
-│   Supabase Cloud                        │
+│   Supabase Cloud (REQUIRED)            │
 │                                         │
 │   ┌─────────────────┐                  │
 │   │  Auth           │  User login      │
@@ -42,158 +52,346 @@ Abugida is designed as a **cloud-first font distribution platform** with Supabas
 └─────────────────────────────────────────┘
 ```
 
-**Key Points:**
-- ✅ App is lightweight (~5MB without fonts)
-- ✅ Fonts downloaded on-demand
-- ✅ Authentication required
-- ✅ Scalable - supports thousands of fonts
-- ✅ Easy updates - just upload new fonts to Supabase
+## Core Principles
 
-### Development (Your Machine)
+### 1. Zero Local Storage
+- **No permanent font storage** - All fonts from Supabase
+- **Temp cache only** - Downloaded to `os.tmpdir()` during session
+- **Auto cleanup** - Temp files deleted on app exit
+- **No font-repo/** - Removed from codebase entirely
 
-```
-┌─────────────────────────────────────────┐
-│   Developer Machine                     │
-│                                         │
-│   ┌─────────────────────────────┐      │
-│   │  Electron App               │      │
-│   │  + Local font-repo/         │      │
-│   └──────────┬──────────────────┘      │
-└──────────────┼──────────────────────────┘
-               │
-               │ Fallback if no Supabase
-               ↓
-         Local Files
-    (font-repo/families/)
-```
+### 2. Session-Based Activation
+- Fonts active **only while app runs**
+- In-memory tracking (Map, not disk)
+- Automatic deactivation on app close
+- No persistent state for activated fonts
 
-**Key Points:**
-- ✅ Works without internet
-- ✅ No Supabase setup needed for quick testing
-- ✅ Local fonts for development
-- ⚠️ NOT for production deployment
+### 3. Cloud-First (No Fallback)
+- Supabase is **REQUIRED** - no local fallback
+- App won't run without Supabase configuration
+- All fonts fetched from cloud on-demand
+- Internet connection required
+
+### 4. Adobe Integration
+- Fonts registered to Windows per-user registry
+- Appear in Adobe Photoshop, Illustrator, InDesign, etc.
+- No admin rights required (HKCU registry)
+- Fonts disappear when app closes
 
 ## Data Flow
 
-### 1. User Authentication
+### User Authentication
 ```
-App Start → Supabase Auth → Login Screen
-                ↓
-            Valid Token → Main App
-```
-
-### 2. Browse Fonts
-```
-Main App → Fetch from Supabase DB (font_families + font_weights)
-        ↓
-     Display in UI
-```
-
-### 3. Preview Font
-```
-User Clicks Font → Download .ttf from Supabase Storage
-                ↓
-            Load in @font-face
-                ↓
-            Render Preview
+App Start
+    ↓
+Check Supabase Session
+    ↓
+    ├─ Valid → Show Font Library
+    └─ Invalid → Show Login Screen
+         ↓
+    Supabase Auth
+         ↓
+    Store User in Local State
 ```
 
-### 4. Install Font
+### Browse Fonts
 ```
-User Clicks Install → Download .ttf from Supabase Storage
-                   ↓
-            Copy to Windows Fonts Directory
-                   ↓
-            Add Registry Entry
-                   ↓
-            Update Local State
+User Opens Library
+    ↓
+Fetch from Supabase PostgreSQL
+    (font_families + font_weights)
+    ↓
+Display in UI Grid
 ```
 
-## Why This Architecture?
-
-### Pros
-1. **Scalable**: Add unlimited fonts without rebuilding app
-2. **Small downloads**: Users only get fonts they want
-3. **Easy updates**: Upload to Supabase, no app update needed
-4. **Metrics**: Track which fonts are popular
-5. **Licensing**: Can add paid fonts later with RLS policies
-6. **Bandwidth**: Supabase Storage has CDN
-
-### Cons (and solutions)
-1. **Requires internet**: Cache downloaded fonts locally (future)
-2. **Backend cost**: Supabase free tier is generous, upgrade as needed
-3. **Initial setup**: One-time Supabase configuration
-
-## Future: Monetization Ready
-
-```sql
--- Add to font_families table
-ALTER TABLE font_families ADD COLUMN is_premium BOOLEAN DEFAULT false;
-ALTER TABLE font_families ADD COLUMN price DECIMAL(10,2) DEFAULT 0;
-
--- Create purchases table
-CREATE TABLE purchases (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id),
-  font_id TEXT REFERENCES font_families(id),
-  purchased_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Update RLS policy
-CREATE POLICY "Users can only download purchased fonts"
-  ON font_weights FOR SELECT
-  TO authenticated
-  USING (
-    family_id IN (
-      SELECT font_id FROM purchases WHERE user_id = auth.uid()
-    )
-    OR
-    family_id IN (
-      SELECT id FROM font_families WHERE is_premium = false
-    )
-  );
+### Activate Font
 ```
+User Clicks "Activate"
+    ↓
+Download .ttf from Supabase Storage
+    ↓
+Write to: C:\Users\...\Temp\abugida-fonts\
+    ↓
+Register to Windows Registry (HKCU)
+    ↓
+Track in Memory Map
+    ↓
+Font Available in Adobe Apps
+```
+
+### App Exit
+```
+User Closes App
+    ↓
+before-quit Event
+    ↓
+Deactivate All Fonts
+    ↓
+    ├─ Remove Registry Entries
+    ├─ Delete Temp Files
+    └─ Clear Memory Map
+    ↓
+App Quits
+```
+
+## Technical Architecture (6 Layers)
+
+### Layer 1: Presentation (React)
+**Location:** `src/renderer/components/`
+
+**Components:**
+- `LoginScreen.tsx` - Supabase authentication
+- `FontLibrary.tsx` - Browse cloud fonts
+- `FontDetail.tsx` - Activate/deactivate fonts
+- `ActivatedFonts.tsx` - View session-active fonts
+
+**Responsibilities:**
+- User interaction
+- Display font previews
+- Activation state management
+- Error boundaries
+
+### Layer 2: IPC Bridge (Preload)
+**Location:** `src/main/preload.ts`
+
+**Exposed API:**
+```typescript
+window.electronAPI = {
+  auth: { login, signUp, logout, getCurrentUser },
+  fonts: {
+    list, getDetails, getFile,
+    activate, deactivate, isActive, getActive
+  }
+}
+```
+
+**Security:** Context isolation enabled
+
+### Layer 3: IPC Handlers
+**Location:** `src/main/ipc-handlers.ts`
+
+**Routes IPC calls to services:**
+- `auth:*` → auth-service
+- `fonts:*` → font-service + font-activator
+
+### Layer 4: Service Layer (Business Logic)
+**Location:** `src/main/services/`
+
+#### font-service.ts
+- Fetches fonts from Supabase (ONLY source)
+- No local fallback
+- Throws error if Supabase not configured
+
+#### font-activator.ts (NEW)
+- Session-based font management
+- Downloads to temp directory
+- Windows registry manipulation
+- In-memory tracking (Map)
+- Cleanup on exit
+
+#### auth-service.ts
+- Supabase Auth (REQUIRED)
+- No mock auth fallback
+- Syncs user to local state
+
+#### state-manager.ts
+- Minimal persistent state (user only)
+- No activated fonts tracking
+- Stored in %APPDATA%
+
+### Layer 5: Data Access
+**Remote:** Supabase (ONLY source)
+- PostgreSQL: font metadata
+- Storage: font files
+- Auth: user sessions
+
+**Local:** state.json (user only)
+
+### Layer 6: System Integration
+**Windows Registry:**
+```
+HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts
+```
+
+**Temp Directory:**
+```
+C:\Users\{username}\AppData\Local\Temp\abugida-fonts\
+```
+
+## Key Files
+
+### New Files (Created)
+- `src/main/services/font-activator.ts` - Session-based activation
+- `src/shared/types.ts` - Shared type definitions
+- `src/renderer/hooks/useFontLoader.ts` - Memory-safe font loading
+- `src/renderer/components/ErrorBoundary.tsx` - Error handling
+- `src/renderer/components/ActivatedFonts.tsx` - Active fonts view
+
+### Deleted Files (Removed)
+- `font-repo/` - Entire directory (no local fonts)
+- `src/renderer/components/Header.tsx` - Unused component
+- `src/renderer/components/InstalledFonts.tsx` - Replaced by ActivatedFonts
+- `src/main/services/font-installer.ts` - Replaced by font-activator
+
+### Refactored Files
+- `src/main/services/font-service.ts` - Supabase only, no fallback
+- `src/main/services/auth-service.ts` - No mock auth
+- `src/main/services/state-manager.ts` - User only, no fonts
+- `src/main/ipc-handlers.ts` - Activate/deactivate handlers
+- `src/main/index.ts` - Cleanup lifecycle
+- All UI components - Install → Activate terminology
+
+## Memory Management
+
+### Font Loading (Renderer)
+**Problem:** Blob URLs leaked memory
+
+**Solution:** `useFontLoader` hook
+- Tracks blob URLs
+- Revokes on unmount
+- Cancellation support
+
+### Font Activation (Main)
+**Session Tracking:**
+```typescript
+Map<string, ActiveFont> // In-memory only
+```
+
+**Cleanup:**
+- `app.on('before-quit')` → deactivateAll()
+- Unregister from registry
+- Delete temp files
+- Clear map
+
+## Error Handling
+
+### React Error Boundaries
+- Wraps main app views
+- Prevents full app crashes
+- Shows fallback UI
+
+### Service Layer
+- Consistent error format: `{ success, error }`
+- Supabase errors handled gracefully
+- Clear user-facing messages
+
+## Security
+
+### Authentication
+- Supabase Auth (required)
+- Session persistence
+- Auto token refresh
+
+### Font Access
+- User must be authenticated
+- Supabase RLS policies
+- Session-based activation
+
+### System Integration
+- Per-user registry (no admin)
+- Temp directory (user-writable)
+- No system-wide changes
+
+## Performance
+
+### On-Demand Loading
+- Fonts downloaded when activated
+- Metadata cached in UI
+- Lazy font preview loading
+
+### Temp Cache
+- Single session lifetime
+- Automatic cleanup
+- No disk space accumulation
+
+## Future Enhancements
+
+### Potential Features
+1. **Offline Mode** - Cache fonts for offline use
+2. **Font Collections** - Group fonts by project
+3. **Premium Fonts** - Paid font licensing
+4. **Team Management** - Share fonts across organization
+5. **Usage Analytics** - Track font activation metrics
+6. **Auto-Activation** - Activate fonts by project/app
+7. **Font Sync** - Sync active fonts across devices
+
+### Monetization Ready
+- Add `is_premium` flag to fonts
+- Create purchases table
+- Update RLS policies
+- Integrate payment provider
+
+## Comparison to Traditional Font Managers
+
+| Feature | Traditional Manager | Abugida (Hosting Platform) |
+|---------|--------------------|-----------------------------|
+| Font Storage | Permanent local copy | Temp cache (session only) |
+| Installation | System-wide | Session-based activation |
+| Internet | Optional | Required |
+| Backend | None | Supabase (required) |
+| Licensing | One-time purchase | Subscription-ready |
+| Use Case | Personal library | Cloud font hosting |
+| Similar To | FontExplorer, MainType | Adobe Fonts, Monotype |
+
+## Development Workflow
+
+### Setup
+```bash
+npm install
+cp env.example .env
+# Add Supabase credentials to .env
+npm run dev
+```
+
+### Build
+```bash
+npm run build    # Compile TypeScript
+npm run package  # Create distributable
+```
+
+### Testing
+1. Login → See cloud fonts
+2. Activate font → Check Adobe apps
+3. Close app → Font disappears
+4. Reopen → Font still gone
 
 ## Deployment Checklist
 
 ### Backend (Supabase)
-- [ ] Create Supabase project
-- [ ] Run `supabase/schema.sql`
-- [ ] Create Storage bucket: `fonts`
-- [ ] Upload font files
-- [ ] Configure RLS policies
-- [ ] Test authentication
+- ✅ Create Supabase project
+- ✅ Run schema.sql
+- ✅ Create `fonts` storage bucket
+- ✅ Upload font files
+- ✅ Configure RLS policies
+- ✅ Test authentication
 
 ### Desktop App
-- [ ] Build: `npm run build`
-- [ ] Package: `npm run package`
-- [ ] Create installer (optional)
-- [ ] Sign code (for production)
-- [ ] Create GitHub release
-- [ ] Distribute to users
+- ✅ Build: `npm run build`
+- ✅ Package: `npm run package`
+- ✅ Test on clean Windows install
+- ✅ Verify cleanup on exit
+- ✅ Create installer (optional)
+- ✅ Code sign (production)
+- ✅ Create GitHub release
 
 ### Configuration
-- [ ] Share Supabase URL with users (or embed in app)
-- [ ] Document setup process
-- [ ] Provide test account credentials
+- ✅ Embed Supabase URL (or distribute separately)
+- ✅ Document setup process
+- ✅ Provide test account
 
-## Local Fonts: Development Only
+## Maintenance
 
-The `font-repo/families/` directory:
-- ✅ Use for development without Supabase
-- ✅ Use for testing new fonts before upload
-- ❌ Don't bundle in production releases
-- ❌ Don't commit large font files to git (use .gitignore)
+### Regular Tasks
+- Monitor Supabase usage
+- Update font catalog
+- Check cleanup working properly
+- Review error logs
 
-## Recommended: Build Without Fonts
+### Updates
+- App updates via Electron auto-updater
+- Font updates instant (cloud-based)
+- No app rebuild for new fonts
 
-Update `electron-builder.yml`:
-```yaml
-extraResources:
-  # Remove this for production:
-  # - from: font-repo/families
-  #   to: font-repo/families
-```
+---
 
-This keeps your app small and forces use of Supabase backend.
-
+**This architecture enables a scalable, cloud-first font hosting platform for Adobe applications.**

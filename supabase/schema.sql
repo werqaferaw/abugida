@@ -37,16 +37,16 @@ ALTER TABLE font_weights ENABLE ROW LEVEL SECURITY;
 -- 3. CREATE RLS POLICIES
 -- ============================================
 
--- Allow authenticated users to read font families
-CREATE POLICY "Fonts are viewable by authenticated users" 
+-- Allow anyone (including guests/anonymous) to read font families
+CREATE POLICY "Fonts are viewable by everyone" 
   ON font_families FOR SELECT 
-  TO authenticated 
+  TO anon, authenticated 
   USING (true);
 
--- Allow authenticated users to read font weights
-CREATE POLICY "Font weights are viewable by authenticated users" 
+-- Allow anyone (including guests/anonymous) to read font weights
+CREATE POLICY "Font weights are viewable by everyone" 
   ON font_weights FOR SELECT 
-  TO authenticated 
+  TO anon, authenticated 
   USING (true);
 
 -- ============================================
@@ -63,10 +63,10 @@ ON CONFLICT (id) DO NOTHING;
 -- 5. STORAGE RLS POLICY
 -- ============================================
 
--- Allow authenticated users to download font files
-CREATE POLICY "Authenticated users can download fonts"
+-- Allow anyone (including guests/anonymous) to download font files
+CREATE POLICY "Anyone can download fonts"
   ON storage.objects FOR SELECT
-  TO authenticated
+  TO anon, authenticated
   USING (bucket_id = 'fonts');
 
 -- ============================================

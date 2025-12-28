@@ -9,7 +9,7 @@ interface FontDetailProps {
 
 interface WeightStatus {
   weight: string;
-  installed: boolean;
+  active: boolean;
   loading: boolean;
 }
 
@@ -36,8 +36,8 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
       // Initialize weight statuses
       const statuses: WeightStatus[] = [];
       for (const weight of details.weights) {
-        const installed = await window.electronAPI.install.isInstalled(fontId, weight.weight);
-        statuses.push({ weight: weight.weight, installed, loading: false });
+        const active = await window.electronAPI.fonts.isActive(fontId, weight.weight);
+        statuses.push({ weight: weight.weight, active, loading: false });
       }
       setWeightStatuses(statuses);
       
@@ -79,63 +79,63 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  const handleInstall = async (weight: string) => {
+  const handleActivate = async (weight: string) => {
     setWeightStatuses(prev => 
       prev.map(ws => ws.weight === weight ? { ...ws, loading: true } : ws)
     );
 
     try {
-      const result = await window.electronAPI.install.install(fontId, weight);
+      const result = await window.electronAPI.fonts.activate(fontId, weight);
       if (result.success) {
         setWeightStatuses(prev => 
-          prev.map(ws => ws.weight === weight ? { ...ws, installed: true, loading: false } : ws)
+          prev.map(ws => ws.weight === weight ? { ...ws, active: true, loading: false } : ws)
         );
-        showNotification('success', `${font?.name} ${weight} installed successfully!`);
+        showNotification('success', `${font?.name} ${weight} activated successfully!`);
       } else {
-        throw new Error(result.error || 'Installation failed');
+        throw new Error(result.error || 'Activation failed');
       }
     } catch (err) {
       setWeightStatuses(prev => 
         prev.map(ws => ws.weight === weight ? { ...ws, loading: false } : ws)
       );
-      showNotification('error', `Failed to install: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showNotification('error', `Failed to activate: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  const handleUninstall = async (weight: string) => {
+  const handleDeactivate = async (weight: string) => {
     setWeightStatuses(prev => 
       prev.map(ws => ws.weight === weight ? { ...ws, loading: true } : ws)
     );
 
     try {
-      const result = await window.electronAPI.install.uninstall(fontId, weight);
+      const result = await window.electronAPI.fonts.deactivate(fontId, weight);
       if (result.success) {
         setWeightStatuses(prev => 
-          prev.map(ws => ws.weight === weight ? { ...ws, installed: false, loading: false } : ws)
+          prev.map(ws => ws.weight === weight ? { ...ws, active: false, loading: false } : ws)
         );
-        showNotification('success', `${font?.name} ${weight} uninstalled successfully!`);
+        showNotification('success', `${font?.name} ${weight} deactivated successfully!`);
       } else {
-        throw new Error(result.error || 'Uninstallation failed');
+        throw new Error(result.error || 'Deactivation failed');
       }
     } catch (err) {
       setWeightStatuses(prev => 
         prev.map(ws => ws.weight === weight ? { ...ws, loading: false } : ws)
       );
-      showNotification('error', `Failed to uninstall: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      showNotification('error', `Failed to deactivate: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  const handleInstallAll = async () => {
-    const uninstalledWeights = weightStatuses.filter(ws => !ws.installed);
-    for (const ws of uninstalledWeights) {
-      await handleInstall(ws.weight);
+  const handleActivateAll = async () => {
+    const inactiveWeights = weightStatuses.filter(ws => !ws.active);
+    for (const ws of inactiveWeights) {
+      await handleActivate(ws.weight);
     }
   };
 
-  const handleUninstallAll = async () => {
-    const installedWeights = weightStatuses.filter(ws => ws.installed);
-    for (const ws of installedWeights) {
-      await handleUninstall(ws.weight);
+  const handleDeactivateAll = async () => {
+    const activeWeights = weightStatuses.filter(ws => ws.active);
+    for (const ws of activeWeights) {
+      await handleDeactivate(ws.weight);
     }
   };
 
@@ -159,7 +159,7 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
     );
   }
 
-  const installedCount = weightStatuses.filter(ws => ws.installed).length;
+  const activeCount = weightStatuses.filter(ws => ws.active).length;
   const anyLoading = weightStatuses.some(ws => ws.loading);
 
   return (
@@ -196,37 +196,37 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
           <div className="detail-tags">
             <span className="detail-tag">{font.category}</span>
             <span className="detail-tag">{font.weights.length} weight{font.weights.length !== 1 ? 's' : ''}</span>
-            {installedCount > 0 && (
+            {activeCount > 0 && (
               <span className="detail-tag detail-tag-installed">
-                {installedCount} installed
+                {activeCount} active
               </span>
             )}
           </div>
         </div>
         
         <div className="detail-actions">
-          {installedCount < font.weights.length && (
+          {activeCount < font.weights.length && (
             <button 
               className="detail-action-btn primary"
-              onClick={handleInstallAll}
+              onClick={handleActivateAll}
               disabled={anyLoading}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
-              Install All
+              Activate All
             </button>
           )}
-          {installedCount > 0 && (
+          {activeCount > 0 && (
             <button 
               className="detail-action-btn danger"
-              onClick={handleUninstallAll}
+              onClick={handleDeactivateAll}
               disabled={anyLoading}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
               </svg>
-              Uninstall All
+              Deactivate All
             </button>
           )}
         </div>
@@ -277,25 +277,25 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
                       <span className="loading-spinner small" />
                       Processing...
                     </div>
-                  ) : status?.installed ? (
+                  ) : status?.active ? (
                     <button 
                       className="detail-weight-btn uninstall"
-                      onClick={() => handleUninstall(weight.weight)}
+                      onClick={() => handleDeactivate(weight.weight)}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                       </svg>
-                      Uninstall
+                      Deactivate
                     </button>
                   ) : (
                     <button 
                       className="detail-weight-btn install"
-                      onClick={() => handleInstall(weight.weight)}
+                      onClick={() => handleActivate(weight.weight)}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                       </svg>
-                      Install
+                      Activate
                     </button>
                   )}
                 </div>
@@ -310,13 +310,13 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
               >
                 {previewText || font.sampleText}
               </div>
-              {status?.installed && (
+              {status?.active && (
                 <div className="detail-weight-status">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 12l2 2 4-4" />
                     <circle cx="12" cy="12" r="9" />
                   </svg>
-                  Installed - Available in all applications
+                  Active - Available in Adobe apps while Abugida is running
                 </div>
               )}
             </div>
@@ -326,6 +326,11 @@ export function FontDetail({ fontId, onBack }: FontDetailProps) {
     </div>
   );
 }
+
+
+
+
+
 
 
 

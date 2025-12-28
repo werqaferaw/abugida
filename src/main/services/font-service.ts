@@ -1,20 +1,13 @@
-import { app } from 'electron';
-import fs from 'fs/promises';
-import path from 'path';
 import { getSupabase, isSupabaseConfigured, FontFamilyWithWeights } from './supabase-client';
 
 /**
- * Font Service Abstraction
+ * Font Service - Cloud-Only Implementation
  * 
- * This is the ONLY module that knows where fonts are stored.
- * The rest of the app accesses fonts exclusively through these functions.
+ * This service fetches fonts exclusively from Supabase.
+ * NO local fallback - Supabase configuration is REQUIRED.
  * 
- * When Supabase is configured:
- * - Metadata is fetched from PostgreSQL database
- * - Font files are downloaded from Supabase Storage
- * 
- * When Supabase is NOT configured (local development):
- * - Falls back to reading from local font-repo/families/
+ * Metadata: PostgreSQL database
+ * Font files: Supabase Storage
  */
 
 export interface FontWeight {
@@ -33,76 +26,7 @@ export interface FontFamily {
 }
 
 // ============================================
-// LOCAL FALLBACK FUNCTIONS
-// ============================================
-
-function getLocalFontRepoPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'font-repo', 'families');
-  } else {
-    return path.join(__dirname, '..', '..', '..', 'font-repo', 'families');
-  }
-}
-
-async function getLocalFonts(): Promise<FontFamily[]> {
-  const familiesPath = getLocalFontRepoPath();
-  
-  try {
-    const entries = await fs.readdir(familiesPath, { withFileTypes: true });
-    const families: FontFamily[] = [];
-    
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        try {
-          const metadataPath = path.join(familiesPath, entry.name, 'metadata.json');
-          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-          const metadata = JSON.parse(metadataContent) as FontFamily;
-          families.push(metadata);
-        } catch (err) {
-          console.warn(`Skipping font family ${entry.name}: no valid metadata.json`);
-        }
-      }
-    }
-    
-    return families.sort((a, b) => a.name.localeCompare(b.name));
-  } catch (err) {
-    console.error('Error reading local font families:', err);
-    return [];
-  }
-}
-
-async function getLocalFontDetails(fontId: string): Promise<FontFamily> {
-  const familiesPath = getLocalFontRepoPath();
-  const metadataPath = path.join(familiesPath, fontId, 'metadata.json');
-  
-  try {
-    const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-    return JSON.parse(metadataContent) as FontFamily;
-  } catch (err) {
-    throw new Error(`Font family not found: ${fontId}`);
-  }
-}
-
-async function getLocalFontFile(fontId: string, weight: string): Promise<Buffer> {
-  const familiesPath = getLocalFontRepoPath();
-  const metadata = await getLocalFontDetails(fontId);
-  const weightInfo = metadata.weights.find(w => w.weight === weight);
-  
-  if (!weightInfo) {
-    throw new Error(`Weight "${weight}" not found for font "${fontId}"`);
-  }
-  
-  const fontPath = path.join(familiesPath, fontId, weightInfo.file);
-  
-  try {
-    return await fs.readFile(fontPath);
-  } catch (err) {
-    throw new Error(`Font file not found: ${fontPath}`);
-  }
-}
-
-// ============================================
-// SUPABASE FUNCTIONS
+// SUPABASE FUNCTIONS (ONLY SOURCE)
 // ============================================
 
 function mapSupabaseToFontFamily(row: FontFamilyWithWeights): FontFamily {
@@ -174,19 +98,23 @@ async function getSupabaseFontFile(fontId: string, weight: string): Promise<Buff
     throw new Error(`Weight "${weight}" not found for font "${fontId}"`);
   }
   
-  // Download the font file from storage
-  const { data, error } = await supabase
+  // For public buckets, use getPublicUrl and fetch directly
+  const { data: urlData } = supabase
     .storage
     .from('fonts')
-    .download(weightData.file_path);
+    .getPublicUrl(weightData.file_path);
   
-  if (error) {
-    console.error('Supabase storage error:', error);
-    throw new Error(`Failed to download font file: ${weightData.file_path}`);
+  // Fetch the file directly using the public URL
+  const response = await globalThis.fetch(urlData.publicUrl);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Font download error:', response.status, errorText);
+    throw new Error(`Failed to download font file: ${weightData.file_path} (${response.status}: ${errorText})`);
   }
   
-  // Convert Blob to Buffer
-  const arrayBuffer = await data.arrayBuffer();
+  // Convert to Buffer
+  const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
 
@@ -195,45 +123,41 @@ async function getSupabaseFontFile(fontId: string, weight: string): Promise<Buff
 // ============================================
 
 /**
- * Get all available font families
+ * Get all available font families (Supabase only)
  */
 export async function getFonts(): Promise<FontFamily[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      return await getSupabaseFonts();
-    } catch (err) {
-      console.warn('Supabase fetch failed, falling back to local:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Supabase is not configured. This app requires a Supabase backend.\n\n' +
+      'Please create a .env file with:\n' +
+      '  SUPABASE_URL=your-project-url\n' +
+      '  SUPABASE_ANON_KEY=your-anon-key'
+    );
   }
-  return getLocalFonts();
+  
+  return getSupabaseFonts();
 }
 
 /**
- * Get details for a specific font family
+ * Get details for a specific font family (Supabase only)
  */
 export async function getFontDetails(fontId: string): Promise<FontFamily> {
-  if (isSupabaseConfigured()) {
-    try {
-      return await getSupabaseFontDetails(fontId);
-    } catch (err) {
-      console.warn('Supabase fetch failed, falling back to local:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured. This app requires a Supabase backend.');
   }
-  return getLocalFontDetails(fontId);
+  
+  return getSupabaseFontDetails(fontId);
 }
 
 /**
- * Get the font file binary data
+ * Get the font file binary data (Supabase only)
  */
 export async function getFontFile(fontId: string, weight: string): Promise<Buffer> {
-  if (isSupabaseConfigured()) {
-    try {
-      return await getSupabaseFontFile(fontId, weight);
-    } catch (err) {
-      console.warn('Supabase download failed, falling back to local:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured. This app requires a Supabase backend.');
   }
-  return getLocalFontFile(fontId, weight);
+  
+  return getSupabaseFontFile(fontId, weight);
 }
 
 /**

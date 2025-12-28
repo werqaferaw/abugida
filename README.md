@@ -1,6 +1,6 @@
-# Abugida - Amharic Font Manager
+# Abugida - Font Hosting Platform
 
-A professional Windows desktop application for managing Amharic fonts. Browse, preview, and install Ethiopian fonts with a native Windows experience.
+A professional Windows desktop application for hosting and activating Amharic fonts. Stream fonts from the cloud to Adobe applications (Photoshop, Illustrator) without permanent installation.
 
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows)
 ![Electron](https://img.shields.io/badge/Electron-33.x-47848F?logo=electron)
@@ -8,12 +8,38 @@ A professional Windows desktop application for managing Amharic fonts. Browse, p
 
 ## ✨ Features
 
-- **🎨 Font Preview** - Live Amharic text preview with custom input
-- **⚡ One-Click Install** - Install fonts without admin privileges
-- **🗑️ Clean Uninstall** - Remove fonts completely from your system
-- **🌐 Cloud Ready** - Optional Supabase backend for font distribution
-- **💻 Native Windows UI** - Professional look with native menus and controls
-- **📦 Portable** - No installation required, runs from any folder
+- **☁️ Cloud-Based Font Hosting** - Stream fonts from Supabase on-demand
+- **⚡ Session-Based Activation** - Fonts active only while app runs
+- **🎨 Adobe Integration** - Fonts appear in Photoshop, Illustrator, etc.
+- **🔒 Secure Authentication** - Supabase Auth with user management
+- **💻 No Admin Rights** - Per-user activation using Windows registry
+- **🧹 Auto Cleanup** - Fonts automatically deactivated on app close
+
+## 🏗️ Architecture (Monotype-Style MVP)
+
+This is a **font hosting platform**, not a traditional font manager. Fonts are temporarily activated from cloud storage while the app runs.
+
+```
+User Opens Abugida
+    ↓
+Sign In (Supabase Auth) ← REQUIRED
+    ↓
+Browse Font Catalog (from Supabase)
+    ↓
+Activate Font → Download to temp → Register to Windows
+    ↓
+Open Photoshop/Illustrator → Font available
+    ↓
+Close Abugida → Fonts deactivated + temp files deleted
+```
+
+### Key Principles
+
+1. **Zero Local Storage** - No fonts persist on disk (except temp cache)
+2. **Session-Based** - Fonts active only while Abugida runs
+3. **Cloud-First** - Supabase is the only source (REQUIRED)
+4. **Adobe Integration** - Fonts visible in Adobe apps via Windows font registry
+5. **Temporary Activation** - Like Adobe Fonts or Monotype's service
 
 ## 🚀 Quick Start
 
@@ -22,13 +48,19 @@ A professional Windows desktop application for managing Amharic fonts. Browse, p
 1. Download the latest release from [Releases](../../releases)
 2. Extract the zip file
 3. Run `Abugida Font Manager.exe`
-4. Sign in and start managing fonts!
+4. Sign in with your Supabase account
+5. Activate fonts - they'll appear in Adobe apps!
+6. Close the app when done (fonts auto-deactivate)
 
 ### For Developers
 
 ```bash
 # Install dependencies
 npm install
+
+# Set up Supabase (REQUIRED)
+# Copy env.example to .env and add your Supabase credentials
+cp env.example .env
 
 # Run in development
 npm run dev
@@ -40,26 +72,25 @@ npm run build
 npm run package
 ```
 
-## 🏗️ Architecture
+## 🌐 Supabase Backend (REQUIRED)
 
-The app is built with a clean three-layer architecture designed for future cloud migration:
+**This app requires a Supabase backend.** There is no local fallback.
 
+### Setup Instructions
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Run the SQL schema from `supabase/schema.sql`
+3. Create a Storage bucket named `fonts`
+4. Upload font files to the bucket
+5. Configure the app with your Supabase credentials:
+
+```env
+# .env file
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
 ```
-┌─────────────────────────────────────┐
-│     React UI (Renderer Process)     │
-├─────────────────────────────────────┤
-│      Font Service Abstraction       │
-│  (Local files OR Supabase Storage)  │
-├─────────────────────────────────────┤
-│    Windows Font System Integration  │
-└─────────────────────────────────────┘
-```
 
-### Key Design Principles
-
-- **Service Abstraction**: All font access goes through a service layer
-- **Future-Proof**: Swap local files for cloud storage without touching UI
-- **Windows Native**: Per-user font installation, native menus, system integration
+See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for detailed instructions.
 
 ## 📁 Project Structure
 
@@ -68,18 +99,22 @@ abugida/
 ├── src/
 │   ├── main/                    # Electron main process
 │   │   ├── services/
-│   │   │   ├── font-service.ts      # Font abstraction layer
-│   │   │   ├── font-installer.ts    # Windows font operations
-│   │   │   ├── auth-service.ts      # Authentication
+│   │   │   ├── font-service.ts      # Fetch fonts from Supabase
+│   │   │   ├── font-activator.ts    # Session-based activation
+│   │   │   ├── auth-service.ts      # Supabase authentication
 │   │   │   └── supabase-client.ts   # Supabase integration
 │   │   └── index.ts
-│   └── renderer/                # React frontend
-│       ├── components/
-│       └── styles/
-├── font-repo/
-│   └── families/                # Local font storage
-└── supabase/
-    └── schema.sql               # Database schema
+│   ├── renderer/                # React frontend
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   │   └── useFontLoader.ts     # Memory-safe font loading
+│   │   └── types/
+│   └── shared/
+│       └── types.ts                 # Shared type definitions
+├── supabase/
+│   └── schema.sql               # Database schema
+└── scripts/
+    └── seed-supabase.js         # Upload fonts to Supabase
 ```
 
 ## 🔧 Technology Stack
@@ -88,84 +123,85 @@ abugida/
 - **React** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Fast development server
-- **Supabase** - Optional backend (PostgreSQL + Storage + Auth)
+- **Supabase** - Backend (PostgreSQL + Storage + Auth)
 
-## 🌐 Supabase Backend (Required for Production)
+## 💡 How It Works
 
-**For Production:** Supabase is the core backend - fonts are served from cloud storage on-demand.
+### Font Activation Flow
 
-**For Development:** Local fonts work as fallback for testing without Supabase.
+1. **User logs in** → Supabase Auth validates credentials
+2. **User browses fonts** → Metadata fetched from PostgreSQL
+3. **User activates font** → Download from Supabase Storage to temp directory
+4. **Font registered** → Windows registry (HKCU, no admin needed)
+5. **Adobe sees font** → Appears in Photoshop, Illustrator, etc.
+6. **User closes app** → Fonts unregistered, temp files deleted
 
-### Production Setup
-
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL schema from `supabase/schema.sql`
-3. Upload fonts to Supabase Storage
-4. Configure the app with your Supabase credentials
-
-See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for detailed instructions.
-
-### Architecture
+### Temporary Font Location
 
 ```
-User Opens App
-    ↓
-Sign In (Supabase Auth) ← REQUIRED
-    ↓
-Fetch Font List (Supabase DB)
-    ↓
-Preview Font (Download from Supabase Storage)
-    ↓
-Install to Windows
+C:\Users\{username}\AppData\Local\Temp\abugida-fonts\
 ```
 
-Fonts are NEVER bundled - they're downloaded on-demand from your Supabase Storage.
+Cleaned up automatically on app exit.
 
-## 📦 Adding New Fonts
+### Windows Registry
 
-1. Create a folder in `font-repo/families/` with a unique ID
-2. Add your `.ttf` font files
-3. Create `metadata.json`:
-
-```json
-{
-  "id": "your-font-id",
-  "name": "Display Name",
-  "designer": "Designer Name",
-  "description": "Font description",
-  "category": "display",
-  "weights": [
-    { "weight": "Regular", "file": "Regular.ttf" },
-    { "weight": "Bold", "file": "Bold.ttf" }
-  ],
-  "sampleText": "ሰላም ዓለም"
-}
+Fonts registered to:
+```
+HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts
 ```
 
-## 🎯 Roadmap
+Per-user registry (no admin rights required).
 
-- [x] Font preview with Amharic text
-- [x] Per-user font installation
-- [x] Windows native UI
-- [x] Supabase backend integration
-- [ ] Font search and filtering
-- [ ] Font collections/favorites
-- [ ] Auto-updates
-- [ ] Font licensing/subscriptions
+## 🎯 Use Cases
+
+- **Graphic Designers** - Access cloud font library in Adobe apps
+- **Font Distributors** - Host and license fonts (similar to Adobe Fonts)
+- **Teams** - Share brand fonts across organization
+- **Print Shops** - Activate client fonts temporarily
+
+## 🔐 Security & Privacy
+
+- ✅ Authentication required (Supabase Auth)
+- ✅ Fonts never permanently stored
+- ✅ Temp files deleted on exit
+- ✅ Per-user activation (no system-wide changes)
+- ✅ Session-based access (no persistent licenses)
+
+## 📝 License
+
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! This is an MVP demonstrating:
+- Session-based font activation
+- Cloud-first font hosting
+- Adobe app integration
+- Monotype-style architecture
 
-## 📄 License
+## 🐛 Troubleshooting
 
-MIT License - see [LICENSE](LICENSE) for details
+### Fonts not appearing in Adobe apps?
 
-## 🙏 Credits
+1. Make sure Abugida is running (fonts deactivate when app closes)
+2. Restart the Adobe application
+3. Check if font is activated in the "Activated" tab
 
-- **Bela Hidase Qedmo** font by Abel Daniel (Belagraph)
-- Built with love for the Ethiopian developer community
+### "Supabase not configured" error?
+
+Create a `.env` file with your Supabase credentials. See [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
+
+### Fonts still showing after closing app?
+
+Run the app again and close it properly. The cleanup happens on graceful shutdown.
+
+## 📚 Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture details
+- [SUPABASE_SETUP.md](SUPABASE_SETUP.md) - Backend setup guide
+- [DISTRIBUTION.md](DISTRIBUTION.md) - Distribution and packaging guide
 
 ---
 
-**Made with ❤️ for Amharic typography**
+**Built with ❤️ for the Amharic typography community**

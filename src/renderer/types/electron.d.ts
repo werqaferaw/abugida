@@ -18,19 +18,22 @@ export interface AuthResult {
   error?: string;
 }
 
-export interface InstallResult {
+export interface ActivationResult {
   success: boolean;
   error?: string;
 }
 
-export interface InstalledFont {
+export interface ActiveFont {
   fontId: string;
   weight: string;
+  tempPath: string;
+  registryName: string;
 }
 
 export interface ElectronAPI {
   auth: {
     login: (email: string, password: string) => Promise<AuthResult>;
+    loginAsGuest: () => Promise<AuthResult>;
     signUp: (email: string, password: string) => Promise<AuthResult>;
     logout: () => Promise<void>;
     getCurrentUser: () => Promise<User | null>;
@@ -39,12 +42,10 @@ export interface ElectronAPI {
     list: () => Promise<FontFamily[]>;
     getDetails: (fontId: string) => Promise<FontFamily>;
     getFile: (fontId: string, weight: string) => Promise<ArrayBuffer>;
-  };
-  install: {
-    install: (fontId: string, weight: string) => Promise<InstallResult>;
-    uninstall: (fontId: string, weight: string) => Promise<InstallResult>;
-    isInstalled: (fontId: string, weight: string) => Promise<boolean>;
-    list: () => Promise<InstalledFont[]>;
+    activate: (fontId: string, weight: string) => Promise<ActivationResult>;
+    deactivate: (fontId: string, weight: string) => Promise<ActivationResult>;
+    isActive: (fontId: string, weight: string) => Promise<boolean>;
+    getActive: () => Promise<ActiveFont[]>;
   };
 }
 

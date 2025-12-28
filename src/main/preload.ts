@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   auth: {
     login: (email: string, password: string) => 
       ipcRenderer.invoke('auth:login', email, password),
+    loginAsGuest: () => 
+      ipcRenderer.invoke('auth:loginAsGuest'),
     signUp: (email: string, password: string) => 
       ipcRenderer.invoke('auth:signUp', email, password),
     logout: () => 
@@ -14,7 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('auth:getCurrentUser'),
   },
 
-  // Fonts
+  // Fonts (includes both fetching and activation)
   fonts: {
     list: () => 
       ipcRenderer.invoke('fonts:list'),
@@ -22,18 +24,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('fonts:getDetails', fontId),
     getFile: (fontId: string, weight: string) => 
       ipcRenderer.invoke('fonts:getFile', fontId, weight),
-  },
-
-  // Install
-  install: {
-    install: (fontId: string, weight: string) => 
-      ipcRenderer.invoke('install:install', fontId, weight),
-    uninstall: (fontId: string, weight: string) => 
-      ipcRenderer.invoke('install:uninstall', fontId, weight),
-    isInstalled: (fontId: string, weight: string) => 
-      ipcRenderer.invoke('install:isInstalled', fontId, weight),
-    list: () => 
-      ipcRenderer.invoke('install:list'),
+    activate: (fontId: string, weight: string) => 
+      ipcRenderer.invoke('fonts:activate', fontId, weight),
+    deactivate: (fontId: string, weight: string) => 
+      ipcRenderer.invoke('fonts:deactivate', fontId, weight),
+    isActive: (fontId: string, weight: string) => 
+      ipcRenderer.invoke('fonts:isActive', fontId, weight),
+    getActive: () => 
+      ipcRenderer.invoke('fonts:getActive'),
   },
 });
 
@@ -41,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 export interface ElectronAPI {
   auth: {
     login: (email: string, password: string) => Promise<{ success: boolean; user?: { email: string }; error?: string }>;
+    loginAsGuest: () => Promise<{ success: boolean; user?: { email: string }; error?: string }>;
     signUp: (email: string, password: string) => Promise<{ success: boolean; user?: { email: string }; error?: string }>;
     logout: () => Promise<void>;
     getCurrentUser: () => Promise<{ email: string } | null>;
@@ -49,12 +48,10 @@ export interface ElectronAPI {
     list: () => Promise<FontFamily[]>;
     getDetails: (fontId: string) => Promise<FontFamily>;
     getFile: (fontId: string, weight: string) => Promise<ArrayBuffer>;
-  };
-  install: {
-    install: (fontId: string, weight: string) => Promise<{ success: boolean; error?: string }>;
-    uninstall: (fontId: string, weight: string) => Promise<{ success: boolean; error?: string }>;
-    isInstalled: (fontId: string, weight: string) => Promise<boolean>;
-    list: () => Promise<{ fontId: string; weight: string }[]>;
+    activate: (fontId: string, weight: string) => Promise<{ success: boolean; error?: string }>;
+    deactivate: (fontId: string, weight: string) => Promise<{ success: boolean; error?: string }>;
+    isActive: (fontId: string, weight: string) => Promise<boolean>;
+    getActive: () => Promise<ActiveFont[]>;
   };
 }
 
@@ -66,6 +63,13 @@ export interface FontFamily {
   category: string;
   weights: { weight: string; file: string }[];
   sampleText: string;
+}
+
+export interface ActiveFont {
+  fontId: string;
+  weight: string;
+  tempPath: string;
+  registryName: string;
 }
 
 declare global {

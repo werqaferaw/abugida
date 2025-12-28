@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
+import * as fontActivator from './services/font-activator';
 
 // Load environment variables from .env file (development)
 // In dev: __dirname is dist/main, so go up to project root
@@ -10,7 +11,7 @@ const isDev = !app.isPackaged;
 if (isDev) {
   const envPath = path.join(__dirname, '..', '..', '.env');
   dotenv.config({ path: envPath });
-  console.log('Loading .env from:', envPath);
+  // Load environment variables
 } else {
   dotenv.config();
 }
@@ -154,6 +155,20 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  }
+});
+
+// Cleanup handler: Deactivate all fonts before app quits
+let isQuitting = false;
+app.on('before-quit', async (event) => {
+  if (!isQuitting) {
+    event.preventDefault();
+    isQuitting = true;
+    
+    // Deactivate all fonts on quit
+    await fontActivator.deactivateAll();
+    
+    app.quit();
   }
 });
 

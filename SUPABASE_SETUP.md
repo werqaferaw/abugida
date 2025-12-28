@@ -77,3 +77,8 @@ The app will automatically detect your `.env` file and connect to Supabase!
 
 
 
+
+
+
+
+

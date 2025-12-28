@@ -10,17 +10,18 @@ interface FontCardProps {
 
 export function FontCard({ font, previewText, onClick }: FontCardProps) {
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [installedWeights, setInstalledWeights] = useState<string[]>([]);
+  const [activeWeights, setActiveWeights] = useState<string[]>([]);
 
   useEffect(() => {
     loadFont();
-    checkInstallStatus();
+    checkActivationStatus();
   }, [font.id]);
 
   const loadFont = async () => {
     try {
-      // Load the Regular weight for preview
-      const fontData = await window.electronAPI.fonts.getFile(font.id, 'Regular');
+      // Load the first available weight for preview (not hardcoded "Regular")
+      const firstWeight = font.weights[0]?.weight || 'Regular';
+      const fontData = await window.electronAPI.fonts.getFile(font.id, firstWeight);
       const blob = new Blob([fontData], { type: 'font/ttf' });
       const url = URL.createObjectURL(blob);
       
@@ -34,18 +35,18 @@ export function FontCard({ font, previewText, onClick }: FontCardProps) {
     }
   };
 
-  const checkInstallStatus = async () => {
-    const installed: string[] = [];
+  const checkActivationStatus = async () => {
+    const active: string[] = [];
     for (const weight of font.weights) {
-      const isInstalled = await window.electronAPI.install.isInstalled(font.id, weight.weight);
-      if (isInstalled) {
-        installed.push(weight.weight);
+      const isActive = await window.electronAPI.fonts.isActive(font.id, weight.weight);
+      if (isActive) {
+        active.push(weight.weight);
       }
     }
-    setInstalledWeights(installed);
+    setActiveWeights(active);
   };
 
-  const installedCount = installedWeights.length;
+  const activeCount = activeWeights.length;
   const totalWeights = font.weights.length;
 
   return (
@@ -57,12 +58,12 @@ export function FontCard({ font, previewText, onClick }: FontCardProps) {
         </div>
         <div className="font-card-meta">
           <span className="font-card-weights">{totalWeights} weight{totalWeights !== 1 ? 's' : ''}</span>
-          {installedCount > 0 && (
+          {activeCount > 0 && (
             <span className="font-card-installed">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M9 12l2 2 4-4" />
               </svg>
-              {installedCount === totalWeights ? 'All installed' : `${installedCount} installed`}
+              {activeCount === totalWeights ? 'All active' : `${activeCount} active`}
             </span>
           )}
         </div>
@@ -90,6 +91,11 @@ export function FontCard({ font, previewText, onClick }: FontCardProps) {
     </div>
   );
 }
+
+
+
+
+
 
 
 

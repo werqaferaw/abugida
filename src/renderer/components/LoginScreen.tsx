@@ -3,11 +3,12 @@ import './LoginScreen.css';
 
 interface LoginScreenProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  onGuestLogin: () => Promise<{ success: boolean; error?: string }>;
 }
 
 type AuthMode = 'login' | 'signup';
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onLogin, onGuestLogin }: LoginScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,6 +71,21 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     setError(null);
     setSuccess(null);
     setConfirmPassword('');
+  };
+
+  const handleGuestLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const result = await onGuestLogin();
+      if (!result.success && result.error) {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -172,6 +188,19 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             )}
           </button>
         </form>
+
+        <div className="login-divider">
+          <span>or</span>
+        </div>
+
+        <button
+          type="button"
+          className="login-guest-button"
+          onClick={handleGuestLogin}
+          disabled={isLoading}
+        >
+          Continue as Guest
+        </button>
 
         <p className="login-hint">
           {mode === 'login' 

@@ -2,33 +2,33 @@ import React, { useState, useEffect } from 'react';
 import type { FontFamily } from '../types/electron';
 import './InstalledFonts.css';
 
-interface InstalledFontsProps {
+interface ActivatedFontsProps {
   onSelectFont: (fontId: string) => void;
 }
 
-interface InstalledFontItem {
+interface ActiveFontItem {
   fontId: string;
   weight: string;
   fontDetails?: FontFamily;
 }
 
-export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
-  const [installedFonts, setInstalledFonts] = useState<InstalledFontItem[]>([]);
+export function ActivatedFonts({ onSelectFont }: ActivatedFontsProps) {
+  const [activeFonts, setActiveFonts] = useState<ActiveFontItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedFontFaces, setLoadedFontFaces] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadInstalledFonts();
+    loadActiveFonts();
   }, []);
 
-  const loadInstalledFonts = async () => {
+  const loadActiveFonts = async () => {
     setIsLoading(true);
     try {
-      const installed = await window.electronAPI.install.list();
+      const active = await window.electronAPI.fonts.getActive();
       
-      // Fetch details for each installed font
-      const fontsWithDetails: InstalledFontItem[] = [];
-      for (const font of installed) {
+      // Fetch details for each active font
+      const fontsWithDetails: ActiveFontItem[] = [];
+      for (const font of active) {
         try {
           const details = await window.electronAPI.fonts.getDetails(font.fontId);
           fontsWithDetails.push({
@@ -39,14 +39,14 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
           // Load font for preview
           await loadFontForPreview(font.fontId, font.weight);
         } catch (err) {
-          // Font might have been removed from repo but still installed
+          // Font might have been removed from cloud but still active
           fontsWithDetails.push(font);
         }
       }
       
-      setInstalledFonts(fontsWithDetails);
+      setActiveFonts(fontsWithDetails);
     } catch (err) {
-      console.error('Failed to load installed fonts:', err);
+      console.error('Failed to load active fonts:', err);
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +58,7 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
       const blob = new Blob([fontData], { type: 'font/ttf' });
       const url = URL.createObjectURL(blob);
       
-      const fontFaceName = `installed-${fontId}-${weight}`;
+      const fontFaceName = `active-${fontId}-${weight}`;
       const fontFace = new FontFace(fontFaceName, `url(${url})`);
       await fontFace.load();
       document.fonts.add(fontFace);
@@ -69,21 +69,21 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
     }
   };
 
-  const handleUninstall = async (fontId: string, weight: string) => {
+  const handleDeactivate = async (fontId: string, weight: string) => {
     try {
-      const result = await window.electronAPI.install.uninstall(fontId, weight);
+      const result = await window.electronAPI.fonts.deactivate(fontId, weight);
       if (result.success) {
-        setInstalledFonts(prev => 
+        setActiveFonts(prev => 
           prev.filter(f => !(f.fontId === fontId && f.weight === weight))
         );
       }
     } catch (err) {
-      console.error('Failed to uninstall font:', err);
+      console.error('Failed to deactivate font:', err);
     }
   };
 
   // Group fonts by family
-  const fontsByFamily = installedFonts.reduce((acc, font) => {
+  const fontsByFamily = activeFonts.reduce((acc, font) => {
     if (!acc[font.fontId]) {
       acc[font.fontId] = {
         fontId: font.fontId,
@@ -99,7 +99,7 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
     return (
       <div className="installed-loading">
         <div className="loading-spinner" />
-        <p>Loading installed fonts...</p>
+        <p>Loading activated fonts...</p>
       </div>
     );
   }
@@ -107,21 +107,21 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
   return (
     <div className="installed">
       <div className="installed-header">
-        <h1 className="installed-title">Installed Fonts</h1>
+        <h1 className="installed-title">Activated Fonts</h1>
         <p className="installed-subtitle">
-          {installedFonts.length} font{installedFonts.length !== 1 ? 's' : ''} installed on your system
+          {activeFonts.length} font{activeFonts.length !== 1 ? 's' : ''} active in this session
         </p>
       </div>
 
-      {installedFonts.length === 0 ? (
+      {activeFonts.length === 0 ? (
         <div className="installed-empty">
           <div className="installed-empty-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
           </div>
-          <h2>No fonts installed yet</h2>
-          <p>Browse the library and install some fonts to see them here</p>
+          <h2>No fonts activated yet</h2>
+          <p>Browse the library and activate some fonts to see them here</p>
         </div>
       ) : (
         <div className="installed-list">
@@ -146,7 +146,7 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
               
               <div className="installed-weights">
                 {family.weights.map((weight) => {
-                  const fontFaceName = `installed-${family.fontId}-${weight}`;
+                  const fontFaceName = `active-${family.fontId}-${weight}`;
                   const isLoaded = loadedFontFaces.has(`${family.fontId}-${weight}`);
                   
                   return (
@@ -167,13 +167,13 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
                         className="installed-weight-uninstall"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleUninstall(family.fontId, weight);
+                          handleDeactivate(family.fontId, weight);
                         }}
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                         </svg>
-                        Uninstall
+                        Deactivate
                       </button>
                     </div>
                   );
@@ -184,22 +184,19 @@ export function InstalledFonts({ onSelectFont }: InstalledFontsProps) {
         </div>
       )}
 
-      {installedFonts.length > 0 && (
+      {activeFonts.length > 0 && (
         <div className="installed-hint">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <path d="M12 16v-4M12 8h.01" />
           </svg>
           <p>
-            Installed fonts are available in all applications. 
-            You may need to restart an application to see newly installed fonts.
+            Activated fonts are available in Adobe apps while Abugida is running. 
+            Fonts will be deactivated when you close this app.
           </p>
         </div>
       )}
     </div>
   );
 }
-
-
-
 
