@@ -22,9 +22,13 @@ interface LoginResult {
  * Demo/Guest login for testing without authentication
  */
 export async function loginAsGuest(): Promise<LoginResult> {
-  const guestUser: User = { email: 'guest@demo.local' };
-  await stateManager.setUser(guestUser);
-  return { success: true, user: guestUser };
+  try {
+    const guestUser: User = { email: 'guest@demo.local' };
+    await stateManager.setUser(guestUser);
+    return { success: true, user: guestUser };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
 }
 
 /**

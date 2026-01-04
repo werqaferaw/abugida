@@ -7,6 +7,8 @@ files:
   - "!dist/**/*.map"
 # NOTE: Font files are NOT bundled in production
 # Fonts are downloaded on-demand from Supabase Storage
+# NOTE: .env is NOT bundled (security). Users must place .env next to executable
+# or set SUPABASE_URL and SUPABASE_ANON_KEY as system environment variables
 win:
   target:
     - target: dir

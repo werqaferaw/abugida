@@ -81,7 +81,7 @@ export function isSupabaseConfigured(): boolean {
   try {
     loadConfig();
     return true;
-  } catch {
+  } catch (err) {
     return false;
   }
 }

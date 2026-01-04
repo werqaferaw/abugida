@@ -61,9 +61,11 @@ function getFontKey(fontId: string, weight: string): string {
 
 /**
  * Get the temp filename for a font
+ * Uses unique timestamp to avoid file locking issues
  */
 function getTempFontFilename(fontId: string, weight: string): string {
-  return `${fontId}-${weight}.ttf`;
+  const timestamp = Date.now();
+  return `${fontId}-${weight}-${timestamp}.ttf`;
 }
 
 /**
@@ -89,10 +91,41 @@ export async function activate(fontId: string, weight: string): Promise<Activati
     const tempDirectory = getTempDir();
     await fs.mkdir(tempDirectory, { recursive: true });
     
-    // Write font file to temp directory
-    const fontFilename = getTempFontFilename(fontId, weight);
-    const fontPath = path.join(tempDirectory, fontFilename);
-    await fs.writeFile(fontPath, fontData);
+    // Write font file to temp directory with unique filename to avoid locks
+    let fontFilename = getTempFontFilename(fontId, weight);
+    let fontPath = path.join(tempDirectory, fontFilename);
+    
+    // Write the font file directly (unique filename avoids conflicts)
+    // Use retry logic as fallback for any file system issues
+    let retries = 3;
+    let lastError: Error | null = null;
+    while (retries > 0) {
+      try {
+        await fs.writeFile(fontPath, fontData); // Write with unique filename (avoids locks)
+        break; // Success, exit retry loop
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const errorMsg = lastError.message;
+        
+        if (errorMsg.includes('EBUSY') || errorMsg.includes('resource busy') || errorMsg.includes('locked') || errorMsg.includes('EEXIST')) {
+          retries--;
+          if (retries > 0) {
+            // Generate new unique filename for retry
+            const newFontFilename = getTempFontFilename(fontId, weight);
+            const newFontPath = path.join(tempDirectory, newFontFilename);
+            fontPath = newFontPath; // Update path for next attempt
+            await new Promise(resolve => setTimeout(resolve, 200)); // Longer delay
+          }
+        } else {
+          // Not a locking/exists error, don't retry
+          throw lastError;
+        }
+      }
+    }
+    
+    if (retries === 0 && lastError) {
+      throw lastError;
+    }
     
     // Register to Windows registry
     // The value format is: "Font Display Name (TrueType)" = "full-path-to-font.ttf"
