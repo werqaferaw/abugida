@@ -5,7 +5,7 @@ import * as stateManager from './state-manager';
  * Auth Service
  * 
  * Uses Supabase Auth for real authentication when configured,
- * falls back to mock auth for local development.
+ * allows guest/demo mode for testing.
  */
 
 interface User {

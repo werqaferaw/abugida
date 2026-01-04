@@ -11,7 +11,7 @@
     "package": "npm run build && electron-builder",
     "typecheck": "tsc --noEmit"
   },
-  "author": "Abugida Team",
+  "author": "",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -32,3 +32,6 @@
     "react-dom": "^18.3.1"
   }
 }
+
+
+

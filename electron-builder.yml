@@ -1,15 +1,17 @@
-appId: com.abugida.fontplatform
-productName: Abugida
+appId: com.abugida.fontmanager
+productName: Abugida Font Manager
 directories:
   output: release
 files:
   - dist/**/*
   - "!dist/**/*.map"
-asar: true
-compression: maximum
+# NOTE: Font files are NOT bundled in production
+# Fonts are downloaded on-demand from Supabase Storage
 win:
   target:
-    - target: portable
+    - target: dir
       arch:
         - x64
-  artifactName: "Abugida-${version}-Portable.${ext}"
+  publisherName: Abugida
+  signAndEditExecutable: false
+
